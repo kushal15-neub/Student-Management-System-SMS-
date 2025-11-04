@@ -1,0 +1,15 @@
+﻿# Ignore Python cache and local data
+__pycache__/
+*.pyc
+env/
+env_*/
+venv/
+.DS_Store
+
+# Local DB and uploads
+db.sqlite3
+media/
+
+# Editor files
+.vscode/
+.idea/
