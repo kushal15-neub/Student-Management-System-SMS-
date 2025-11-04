@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Parent, Student
+from .models import Parent, Student, Mark
 
 
 @admin.register(Parent)
@@ -27,3 +27,16 @@ class StudentAdmin(admin.ModelAdmin):
     search_fields = ("first_name", "last_name", "student_id", "mobile_number")
     list_filter = ("gender", "student_class", "section")
     readonly_fields = ("student_image",)
+
+
+@admin.register(Mark)
+class MarkAdmin(admin.ModelAdmin):
+    list_display = ("student", "subject", "exam_name", "score", "max_score", "updated_at")
+    list_filter = ("subject", "exam_name")
+    search_fields = (
+        "student__first_name",
+        "student__last_name",
+        "student__student_id",
+        "subject",
+        "exam_name",
+    )

@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from django.conf import settings
 
 
 # Create your models here.
@@ -66,3 +67,28 @@ class Student(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class Mark(models.Model):
+    student = models.ForeignKey(
+        Student, on_delete=models.CASCADE, related_name="marks"
+    )
+    subject = models.CharField(max_length=100)
+    exam_name = models.CharField(max_length=100)
+    score = models.PositiveIntegerField()
+    max_score = models.PositiveIntegerField(default=100)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_marks",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("student", "subject", "exam_name")
+        ordering = ["student", "subject", "exam_name"]
+
+    def __str__(self):
+        return f"{self.student} - {self.subject} ({self.exam_name})"
