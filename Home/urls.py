@@ -23,6 +23,8 @@ from django.views.generic import TemplateView, RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 
+from student.views import view_student
+
 
 try:
     # STATIC_URL is defined in settings; use it to build the redirect target for
@@ -35,6 +37,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("schoo.urls")),
     path("student/", include("student.urls")),
+    path("students/<slug:slug>/", view_student, name="view_student"),
     # Short-term routes to match the static-like links in the templates
     # (these templates were built as static HTML originally). These
     # TemplateView routes prevent 404s when the UI links to

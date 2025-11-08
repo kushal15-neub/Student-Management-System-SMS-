@@ -20,6 +20,16 @@ class Parent(models.Model):
 
 
 class Student(models.Model):
+    # Optional link to a Django user so a Student can log in and view their
+    # own results. This is nullable to avoid forcing an immediate backfill.
+    # When present you can access the Student from a user with `request.user.student`.
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="student_profile",
+    )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     student_id = models.CharField(max_length=100)
@@ -36,17 +46,16 @@ class Student(models.Model):
     section = models.CharField(max_length=15, blank=True)
     student_image = models.ImageField(upload_to="student/", blank=True, null=True)
 
-    
     parent = models.ForeignKey(
         Parent, on_delete=models.CASCADE, related_name="students", null=True, blank=True
     )
     slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-       
+
         created = self.pk is None
         if created:
-      
+
             super().save(*args, **kwargs)
 
         if not self.slug:
@@ -54,7 +63,7 @@ class Student(models.Model):
             base = slugify(f"{self.first_name}-{identifier}") or "student"
             slug = base
             counter = 1
-          
+
             while Student.objects.filter(slug=slug).exclude(pk=self.pk).exists():
                 slug = f"{base}-{counter}"
                 counter += 1
@@ -70,9 +79,7 @@ class Student(models.Model):
 
 
 class Mark(models.Model):
-    student = models.ForeignKey(
-        Student, on_delete=models.CASCADE, related_name="marks"
-    )
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="marks")
     subject = models.CharField(max_length=100)
     exam_name = models.CharField(max_length=100)
     score = models.PositiveIntegerField()
