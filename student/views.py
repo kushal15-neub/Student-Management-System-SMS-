@@ -1,4 +1,6 @@
 from urllib import request
+
+from django.http import HttpResponseForbidden
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.views.decorators.csrf import csrf_exempt
@@ -94,25 +96,30 @@ def student_list(request):
     return render(request, "Students/students.html", context)
 
 
-def edit_student(request, pk):
-
-    student = get_object_or_404(Student.objects.select_related("parent"), pk=pk)
-    parent = student.parent
+def edit_student(request, slug):
+    student = get_object_or_404(Student, slug=slug)
+    parent = student.parent if hasattr(student, "parent") else None
 
     if request.method == "POST":
-        # Student fields
-        first_name = request.POST.get("first_name")
-        last_name = request.POST.get("last_name")
-        student_id = request.POST.get("student_id")
-        gender = request.POST.get("gender")
-        date_of_birth = request.POST.get("date_of_birth")
-        student_class = request.POST.get("student_class")
-        religion = request.POST.get("religion")
-        joining_date = request.POST.get("joining_date")
-        mobile_number = request.POST.get("mobile_number")
-        admission_number = request.POST.get("admission_number")
-        section = request.POST.get("section")
+        # Student fields - get values and strip whitespace
+        first_name = request.POST.get("first_name", "").strip()
+        last_name = request.POST.get("last_name", "").strip()
+        student_id = request.POST.get("student_id", "").strip()
+        gender = request.POST.get("gender", "").strip()
+        date_of_birth = request.POST.get("date_of_birth", "").strip() or None
+        student_class = request.POST.get("student_class", "").strip()
+        religion = request.POST.get("religion", "").strip()
+        joining_date = request.POST.get("joining_date", "").strip() or None
+        mobile_number = request.POST.get("mobile_number", "").strip()
+        admission_number = request.POST.get("admission_number", "").strip()
+        section = request.POST.get("section", "").strip()
         student_image = request.FILES.get("student_image")
+
+        # Debug: Print received values (remove after testing)
+        print(f"DEBUG - Received POST data:")
+        print(f"  first_name: '{first_name}'")
+        print(f"  last_name: '{last_name}'")
+        print(f"  Current student: {student.first_name} {student.last_name}")
 
         # Parent fields (use multiple possible form field names for safety)
         father_name = request.POST.get("father_name")
@@ -159,29 +166,52 @@ def edit_student(request, pk):
                 present_address=present_address or "",
             )
 
-        # Update student fields
-        student.first_name = first_name or student.first_name
-        student.last_name = last_name or student.last_name
-        student.student_id = student_id or student.student_id
-        student.gender = gender or student.gender
-        student.date_of_birth = date_of_birth or student.date_of_birth
-        student.student_class = student_class or student.student_class
-        student.religion = religion or student.religion
-        student.joining_date = joining_date or student.joining_date
-        student.mobile_number = mobile_number or student.mobile_number
-        student.admission_number = admission_number or student.admission_number
-        student.section = section or student.section
+        # Update student fields - always update from form values
+        # Store old name for comparison
+        old_name = f"{student.first_name} {student.last_name}"
+
+        student.first_name = first_name
+        student.last_name = last_name
+        student.student_id = student_id
+        if gender:
+            student.gender = gender
+        if date_of_birth:
+            student.date_of_birth = date_of_birth
+        student.student_class = student_class
+        student.religion = religion
+        if joining_date:
+            student.joining_date = joining_date
+        student.mobile_number = mobile_number
+        student.admission_number = admission_number
+        student.section = section
         if student_image:
             student.student_image = student_image
         student.parent = parent
-        student.save()
 
-        messages.success(request, "Student updated successfully.")
-        return redirect("student_details", pk=student.pk)
+        # Force save and refresh from database
+        student.save()
+        student.refresh_from_db()
+
+        new_name = f"{student.first_name} {student.last_name}"
+        messages.success(
+            request,
+            f"Student updated successfully. Old: {old_name} → New: {new_name}",
+        )
+        return redirect("student_list")
 
     # GET -> render form
     context = {"student": student, "parent": parent}
     return render(request, "Students/edit-student.html", context)
+
+
+def delete_student(request, slug):
+    if request.method == "POST":
+        student = get_object_or_404(Student, slug=slug)
+        student_name = f"{student.first_name} {student.last_name}"
+        student.delete()
+        messages.success(request, f"Student '{student_name}' deleted successfully.")
+        return redirect("student_list")
+    return HttpResponseForbidden()
 
 
 @login_required
@@ -193,143 +223,163 @@ def student_dashboard(request):
         # No direct link found — try a fallback by admission_number == username
         student = Student.objects.filter(admission_number=request.user.username).first()
 
+    # Let the display_name context processor provide the friendly name (first name
+    # preferred). Only pass the student object here so templates can still access
+    # student-specific data. This avoids duplicating full-name formatting in
+    # multiple places and prevents showing the same name twice.
     context = {"student": student}
     return render(request, "Students/student-dashboard.html", context)
 
 
-@csrf_exempt
-def public_results(request):
-    """Public (unauthenticated) entry to view results by admission number.
+@login_required
+def teacher_dashboard(request):
+    """Teacher/staff dashboard. Uses the same layout as student but allows extra actions."""
+    user = request.user
+    if not getattr(user, "is_teacher", False):
+        messages.error(request, "You do not have access to the teacher dashboard.")
+        return redirect("student_dashboard")
 
-    WARNING: This endpoint is intentionally permissive to allow previewing
-    results before authentication is implemented. It should be considered
-    temporary — prefer a token-based or authenticated flow in production.
-    The view accepts POST with `admission_number` and optional
-    `date_of_birth` (YYYY-MM-DD) to reduce accidental exposure.
-    """
-    student = None
-    exams = {}
+    context = {
+        "display_name": getattr(user, "first_name", "")
+        or user.get_full_name()
+        or user.username,
+    }
+    return render(request, "Teachers/teacher-dashboard.html", context)
 
-    if request.method == "POST":
-        admission = request.POST.get("admission_number", "").strip()
-        dob = request.POST.get("date_of_birth", "").strip()
 
-        if not admission:
-            messages.error(request, "Please provide an admission number.")
-            return render(
-                request,
-                "Students/public_results_form.html",
-                {"student": None, "exams": {}},
-            )
+# @csrf_exempt
+# def public_results(request):
+#     """Public (unauthenticated) entry to view results by admission number.
 
-        qs = Student.objects.filter(admission_number=admission)
+#     WARNING: This endpoint is intentionally permissive to allow previewing
+#     results before authentication is implemented. It should be considered
+#     temporary — prefer a token-based or authenticated flow in production.
+#     The view accepts POST with `admission_number` and optional
+#     `date_of_birth` (YYYY-MM-DD) to reduce accidental exposure.
+#     """
+#     student = None
+#     exams = {}
 
-        if dob:
-            try:
-                from datetime import datetime
+#     if request.method == "POST":
+#         admission = request.POST.get("admission_number", "").strip()
+#         dob = request.POST.get("date_of_birth", "").strip()
 
-                # HTML5 date input sends YYYY-MM-DD format, which is what we need
-                dob_parsed = datetime.strptime(dob, "%Y-%m-%d").date()
-                qs = qs.filter(date_of_birth=dob_parsed)
-            except ValueError:
-                messages.error(
-                    request, "Invalid date format. Please use YYYY-MM-DD format."
-                )
-                return render(
-                    request,
-                    "Students/public_results_form.html",
-                    {"student": None, "exams": {}},
-                )
-            except Exception as e:
-                messages.error(request, f"Error processing date: {str(e)}")
-                return render(
-                    request,
-                    "Students/public_results_form.html",
-                    {"student": None, "exams": {}},
-                )
+#         if not admission:
+#             messages.error(request, "Please provide an admission number.")
+#             return render(
+#                 request,
+#                 "Students/public_results_form.html",
+#                 {"student": None, "exams": {}},
+#             )
 
-        student = qs.first()
-        if not student:
-            messages.error(
-                request,
-                f"No student found with admission number: {admission}. Please check and try again.",
-            )
-            return render(
-                request,
-                "Students/public_results_form.html",
-                {"student": None, "exams": {}},
-            )
+#         qs = Student.objects.filter(admission_number=admission)
 
-        # Build exams grouping and annotate marks (same format as student_results)
-        marks = student.marks.all().order_by("exam_name", "subject")
+#         if dob:
+#             try:
+#                 from datetime import datetime
 
-        if not marks.exists():
-            messages.warning(
-                request,
-                f"Student found, but no marks/results are available yet for {student.first_name} {student.last_name}.",
-            )
-            context = {"student": student, "exams": {}}
-            return render(request, "Students/results.html", context)
+#                 # HTML5 date input sends YYYY-MM-DD format, which is what we need
+#                 dob_parsed = datetime.strptime(dob, "%Y-%m-%d").date()
+#                 qs = qs.filter(date_of_birth=dob_parsed)
+#             except ValueError:
+#                 messages.error(
+#                     request, "Invalid date format. Please use YYYY-MM-DD format."
+#                 )
+#                 return render(
+#                     request,
+#                     "Students/public_results_form.html",
+#                     {"student": None, "exams": {}},
+#                 )
+#             except Exception as e:
+#                 messages.error(request, f"Error processing date: {str(e)}")
+#                 return render(
+#                     request,
+#                     "Students/public_results_form.html",
+#                     {"student": None, "exams": {}},
+#                 )
 
-        for m in marks:
-            ex = m.exam_name
-            exams.setdefault(ex, {"marks": [], "total_score": 0, "max_total": 0})
-            exams[ex]["marks"].append(m)
-            exams[ex]["total_score"] += m.score
-            exams[ex]["max_total"] += m.max_score
+#         student = qs.first()
+#         if not student:
+#             messages.error(
+#                 request,
+#                 f"No student found with admission number: {admission}. Please check and try again.",
+#             )
+#             return render(
+#                 request,
+#                 "Students/public_results_form.html",
+#                 {"student": None, "exams": {}},
+#             )
 
-        # Compute percent per exam and grade
-        for ex, info in exams.items():
-            if info["max_total"]:
-                info["percent"] = round(
-                    info["total_score"] * 100.0 / info["max_total"], 2
-                )
-                p = info["percent"]
-                if p >= 90:
-                    info["grade"] = "A+"
-                elif p >= 80:
-                    info["grade"] = "A"
-                elif p >= 70:
-                    info["grade"] = "B"
-                elif p >= 60:
-                    info["grade"] = "C"
-                elif p >= 50:
-                    info["grade"] = "D"
-                else:
-                    info["grade"] = "F"
-            else:
-                info["percent"] = None
-                info["grade"] = "N/A"
+#         # Build exams grouping and annotate marks (same format as student_results)
+#         marks = student.marks.all().order_by("exam_name", "subject")
 
-            # Calculate subject-wise percentages and grades
-            for m in info["marks"]:
-                if m.max_score:
-                    subj_pct = round(m.score * 100.0 / m.max_score, 2)
-                else:
-                    subj_pct = None
-                setattr(m, "subject_percent", subj_pct)
-                if subj_pct is None:
-                    setattr(m, "subject_grade", None)
-                elif subj_pct >= 90:
-                    setattr(m, "subject_grade", "A+")
-                elif subj_pct >= 80:
-                    setattr(m, "subject_grade", "A")
-                elif subj_pct >= 70:
-                    setattr(m, "subject_grade", "B")
-                elif subj_pct >= 60:
-                    setattr(m, "subject_grade", "C")
-                elif subj_pct >= 50:
-                    setattr(m, "subject_grade", "D")
-                else:
-                    setattr(m, "subject_grade", "F")
+#         if not marks.exists():
+#             messages.warning(
+#                 request,
+#                 f"Student found, but no marks/results are available yet for {student.first_name} {student.last_name}.",
+#             )
+#             context = {"student": student, "exams": {}}
+#             return render(request, "Students/results.html", context)
 
-        context = {"student": student, "exams": exams}
-        return render(request, "Students/results.html", context)
+#         for m in marks:
+#             ex = m.exam_name
+#             exams.setdefault(ex, {"marks": [], "total_score": 0, "max_total": 0})
+#             exams[ex]["marks"].append(m)
+#             exams[ex]["total_score"] += m.score
+#             exams[ex]["max_total"] += m.max_score
 
-    # GET -> show the public form
-    return render(
-        request, "Students/public_results_form.html", {"student": None, "exams": {}}
-    )
+#         # Compute percent per exam and grade
+#         for ex, info in exams.items():
+#             if info["max_total"]:
+#                 info["percent"] = round(
+#                     info["total_score"] * 100.0 / info["max_total"], 2
+#                 )
+#                 p = info["percent"]
+#                 if p >= 90:
+#                     info["grade"] = "A+"
+#                 elif p >= 80:
+#                     info["grade"] = "A"
+#                 elif p >= 70:
+#                     info["grade"] = "B"
+#                 elif p >= 60:
+#                     info["grade"] = "C"
+#                 elif p >= 50:
+#                     info["grade"] = "D"
+#                 else:
+#                     info["grade"] = "F"
+#             else:
+#                 info["percent"] = None
+#                 info["grade"] = "N/A"
+
+#             # Calculate subject-wise percentages and grades
+#             for m in info["marks"]:
+#                 if m.max_score:
+#                     subj_pct = round(m.score * 100.0 / m.max_score, 2)
+#                 else:
+#                     subj_pct = None
+#                 setattr(m, "subject_percent", subj_pct)
+#                 if subj_pct is None:
+#                     setattr(m, "subject_grade", None)
+#                 elif subj_pct >= 90:
+#                     setattr(m, "subject_grade", "A+")
+#                 elif subj_pct >= 80:
+#                     setattr(m, "subject_grade", "A")
+#                 elif subj_pct >= 70:
+#                     setattr(m, "subject_grade", "B")
+#                 elif subj_pct >= 60:
+#                     setattr(m, "subject_grade", "C")
+#                 elif subj_pct >= 50:
+#                     setattr(m, "subject_grade", "D")
+#                 else:
+#                     setattr(m, "subject_grade", "F")
+
+#         context = {"student": student, "exams": exams}
+#         return render(request, "Students/results.html", context)
+
+#     # GET -> show the public form
+#     return render(
+#         request, "Students/public_results_form.html", {"student": None, "exams": {}}
+#     )
 
 
 def view_student(request, slug):
