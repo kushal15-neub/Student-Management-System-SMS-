@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Parent, Student, Mark
+from .models import Parent, Student, Mark, Department, Subject, Course
 
 
 @admin.register(Parent)
@@ -31,7 +31,14 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(Mark)
 class MarkAdmin(admin.ModelAdmin):
-    list_display = ("student", "subject", "exam_name", "score", "max_score", "updated_at")
+    list_display = (
+        "student",
+        "subject",
+        "exam_name",
+        "score",
+        "max_score",
+        "updated_at",
+    )
     list_filter = ("subject", "exam_name")
     search_fields = (
         "student__first_name",
@@ -40,3 +47,25 @@ class MarkAdmin(admin.ModelAdmin):
         "subject",
         "exam_name",
     )
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "created_at")
+    search_fields = ("name", "code")
+    list_filter = ("created_at",)
+
+
+@admin.register(Subject)
+class SubjectAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "department", "created_at")
+    search_fields = ("name", "code", "description")
+    list_filter = ("department", "created_at")
+
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ("title", "code", "is_active", "created_at")
+    search_fields = ("title", "code", "description")
+    list_filter = ("is_active", "subjects", "created_at")
+    filter_horizontal = ("subjects",)

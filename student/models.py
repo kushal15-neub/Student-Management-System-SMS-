@@ -52,12 +52,13 @@ class Student(models.Model):
     slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
 
     def save(self, *args, **kwargs):
-
         created = self.pk is None
-        if created:
 
+        # For new objects, save first to get a PK
+        if created:
             super().save(*args, **kwargs)
 
+        # Generate slug if missing
         if not self.slug:
             identifier = self.student_id or str(self.pk)
             base = slugify(f"{self.first_name}-{identifier}") or "student"
@@ -68,11 +69,11 @@ class Student(models.Model):
                 slug = f"{base}-{counter}"
                 counter += 1
             self.slug = slug
+            # If slug was missing, save again with just the slug field
             super().save(update_fields=["slug"])
         else:
-            # If slug already provided and object was created above, ensure other fields are saved
-            if created:
-                super().save(*args, **kwargs)
+            # For existing objects, always save to persist all field changes
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -99,3 +100,54 @@ class Mark(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.subject} ({self.exam_name})"
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True, blank=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})" if self.code else self.name
+
+
+class Subject(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True, blank=True)
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subjects",
+    )
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.code})" if self.code else self.name
+
+
+class Course(models.Model):
+    title = models.CharField(max_length=150, unique=True)
+    code = models.CharField(max_length=30, unique=True)
+    description = models.TextField(blank=True)
+    subjects = models.ManyToManyField(Subject, related_name="courses", blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["title"]
+
+    def __str__(self):
+        return f"{self.title} ({self.code})"

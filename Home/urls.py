@@ -58,6 +58,7 @@ urlpatterns = [
     path(
         "favicon.ico", RedirectView.as_view(url=STATIC_URL + "assets/img/favicon.png")
     ),
+    path("authentication/", include("home_auth.urls")),
 ]
 
 # Serve static files during development

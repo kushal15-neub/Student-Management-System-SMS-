@@ -4,8 +4,11 @@ Usage: python manage.py setup_test_student
 """
 
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from student.models import Student, Mark
+
+# Get the user model (will be CustomUser based on AUTH_USER_MODEL setting)
+User = get_user_model()
 
 
 class Command(BaseCommand):
@@ -17,13 +20,18 @@ class Command(BaseCommand):
         password = "test123"
 
         user, created = User.objects.get_or_create(
-            username=username, defaults={"email": "student1@example.com"}
+            username=username,
+            defaults={"email": "student1@gmail.com", "is_student": True},
         )
         if created:
             user.set_password(password)
             user.save()
             self.stdout.write(self.style.SUCCESS(f'✓ User "{username}" created!'))
         else:
+            # Update user to be a student if not already
+            if hasattr(user, "is_student") and not user.is_student:
+                user.is_student = True
+                user.save()
             self.stdout.write(self.style.WARNING(f'User "{username}" already exists.'))
 
         # Create or get student
@@ -43,13 +51,15 @@ class Command(BaseCommand):
         if created:
             self.stdout.write(self.style.SUCCESS("✓ Student created!"))
         else:
-            # Update user link if student exists but user is not linked
-            if not student.user:
+            # Always ensure user is linked to student (even if student already exists)
+            if not student.user or student.user != user:
                 student.user = user
                 student.save()
                 self.stdout.write(self.style.SUCCESS("✓ Student linked to user!"))
             else:
-                self.stdout.write(self.style.WARNING("Student already exists."))
+                self.stdout.write(
+                    self.style.WARNING("Student already exists and is linked.")
+                )
 
         # Add sample marks
         marks_data = [
@@ -126,13 +136,40 @@ class Command(BaseCommand):
         if marks_created == 0:
             self.stdout.write(self.style.WARNING("All marks already exist."))
 
+        # Verify the link is working
+        self.stdout.write("")
+        self.stdout.write("Verifying user-student link...")
+        user.refresh_from_db()
+        student.refresh_from_db()
+
+        if hasattr(user, "student_profile") and user.student_profile == student:
+            self.stdout.write(self.style.SUCCESS("✓ User-student link verified!"))
+        elif student.user == user:
+            self.stdout.write(self.style.SUCCESS("✓ User-student link verified!"))
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    "✗ Warning: User-student link may not be working correctly."
+                )
+            )
+            self.stdout.write(self.style.WARNING("  User: %s" % user))
+            self.stdout.write(self.style.WARNING("  Student: %s" % student))
+            self.stdout.write(self.style.WARNING("  Student.user: %s" % student.user))
+
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS("=" * 60))
         self.stdout.write(self.style.SUCCESS("✅ Test data setup complete!"))
         self.stdout.write("")
         self.stdout.write("Login credentials:")
         self.stdout.write(f"  Username: {username}")
+        self.stdout.write(f"  Email: {user.email}")
         self.stdout.write(f"  Password: {password}")
+        self.stdout.write("")
+        self.stdout.write("Student Info:")
+        self.stdout.write(f"  Name: {student.first_name} {student.last_name}")
+        self.stdout.write(f"  Student ID: {student.student_id}")
+        self.stdout.write(f"  Admission Number: {student.admission_number}")
+        self.stdout.write(f"  Class: {student.student_class}")
         self.stdout.write("")
         self.stdout.write("Test URLs:")
         self.stdout.write(
