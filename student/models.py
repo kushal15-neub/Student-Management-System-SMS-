@@ -1,3 +1,4 @@
+from pyclbr import Class
 from django.db import models
 from django.utils.text import slugify
 from django.conf import settings
@@ -45,6 +46,15 @@ class Student(models.Model):
     admission_number = models.CharField(max_length=15, blank=True)
     section = models.CharField(max_length=15, blank=True)
     student_image = models.ImageField(upload_to="student/", blank=True, null=True)
+
+    # Link student to a Department so teachers can filter students by department.
+    department = models.ForeignKey(
+        "Department",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="students",
+    )
 
     parent = models.ForeignKey(
         Parent, on_delete=models.CASCADE, related_name="students", null=True, blank=True
@@ -127,6 +137,10 @@ class Subject(models.Model):
         related_name="subjects",
     )
     description = models.TextField(blank=True)
+    # Whether an admin has approved this subject. Default True keeps
+    # existing subjects visible; new teacher-submitted subjects will be set
+    # to False until an admin approves them.
+    is_approved = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -151,3 +165,100 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.code})"
+
+
+class Teacher(models.Model):
+    # Optional link to a Django user so a Teacher can log in and view their
+    # own classes and students. This is nullable to avoid forcing an immediate backfill.
+    # When present you can access the Teacher from a user with `request.user.teacher_profile`.
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="teacher_profile",
+    )
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    teacher_id = models.CharField(max_length=100, unique=True)
+    gender = models.CharField(
+        max_length=10,
+        choices=[("Male", "Male"), ("Female", "Female"), ("Other", "Other")],
+    )
+    date_of_birth = models.DateField(null=True, blank=True)
+    email = models.EmailField(max_length=255, unique=True)
+    mobile_number = models.CharField(max_length=15, blank=True)
+    joining_date = models.DateField(null=True, blank=True)
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="teachers",
+    )
+    subjects = models.ManyToManyField(Subject, related_name="teachers", blank=True)
+    teacher_image = models.ImageField(upload_to="teacher/", blank=True, null=True)
+    slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        created = self.pk is None
+
+        # For new objects, save first to get a PK
+        if created:
+            super().save(*args, **kwargs)
+
+        # Generate slug if missing
+        if not self.slug:
+            identifier = self.teacher_id or str(self.pk)
+            base = slugify(f"{self.first_name}-{identifier}") or "teacher"
+            slug = base
+            counter = 1
+
+            while Teacher.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base}-{counter}"
+                counter += 1
+            self.slug = slug
+            super().save(update_fields=["slug"])
+        else:
+            super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+
+    class Meta:
+        ordering = ["first_name", "last_name"]
+
+
+class Assignment(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_assignments",
+    )
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+
+    assigned_students = models.ManyToManyField(
+        Student, related_name="assignments", blank=True
+    )
+
+    due_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title

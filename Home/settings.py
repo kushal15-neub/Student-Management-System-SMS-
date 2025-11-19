@@ -74,10 +74,12 @@ TEMPLATES = [
     },
 ]
 
+
 WSGI_APPLICATION = "Home.wsgi.application"
 
 
 # Database
+
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
@@ -86,7 +88,6 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -145,3 +146,5 @@ AUTHENTICATION_BACKENDS = [
 # Post-login redirect (fallback if views don't specify)
 LOGIN_REDIRECT_URL = "/student/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
+# Use custom login URL (home_auth provides login at /authentication/login/)
+LOGIN_URL = "/authentication/login/"

@@ -20,6 +20,9 @@ class CustomUser(AbstractUser):
     is_admin = models.BooleanField(default=False)
     is_teacher = models.BooleanField(default=False)
 
+    # Optional avatar for user profile
+    avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
+
     # Override groups and user_permissions to avoid conflicts
     groups = models.ManyToManyField(
         "auth.Group",

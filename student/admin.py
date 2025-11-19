@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Parent, Student, Mark, Department, Subject, Course
+from .models import Parent, Student, Mark, Department, Subject, Course, Teacher
+
+admin.site.register(Teacher)
 
 
 @admin.register(Parent)
@@ -58,9 +60,9 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "code", "department", "created_at")
+    list_display = ("name", "code", "department", "is_approved", "created_at")
     search_fields = ("name", "code", "description")
-    list_filter = ("department", "created_at")
+    list_filter = ("department", "is_approved", "created_at")
 
 
 @admin.register(Course)
