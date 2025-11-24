@@ -19,4 +19,4 @@ print("Total block closings:", len(closes))
 print("Block names and counts:")
 from collections import Counter
 
-print("\n".join(f"{name}: {count}" for name, count in Counter(opens).items()))
+print("\n".join(f"{name}: {count}" for name, count in Counter(opens).items()));
