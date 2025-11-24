@@ -951,10 +951,16 @@ def teacher_marks(request):
             for mark in existing_marks:
                 if mark.student.pk == student.pk and mark.subject == subject.name:
                     subject_marks.append(mark)
+            # Check if Midterm and Final marks exist
+            has_midterm = any(mark.exam_name == "Midterm" for mark in subject_marks)
+            has_final = any(mark.exam_name == "Final" for mark in subject_marks)
+
             student_subjects.append(
                 {
                     "subject": subject,
                     "marks": sorted(subject_marks, key=lambda x: x.exam_name),
+                    "has_midterm": has_midterm,
+                    "has_final": has_final,
                 }
             )
         students_with_subjects.append(
@@ -1236,3 +1242,28 @@ def my_assignments(request):
 
     assignments = student.assignments.all().order_by("-created_at")
     return render(request, "Students/my_assignments.html", {"assignments": assignments})
+
+
+@login_required
+def student_subjects(request):
+    """List subjects available to the logged-in student (filtered by their department)."""
+    if not getattr(request.user, "is_student", False):
+        return HttpResponseForbidden("Only students can view their subjects.")
+
+    student = getattr(request.user, "student_profile", None)
+    if not student:
+        messages.error(request, "No student profile linked to your account.")
+        return redirect("student_dashboard")
+
+    # Filter subjects by student's department and only show approved subjects
+    subjects = (
+        Subject.objects.filter(department=student.department, is_approved=True)
+        if getattr(student, "department", None)
+        else Subject.objects.none()
+    ).order_by("name")
+
+    context = {
+        "subjects": subjects,
+        "student": student,
+    }
+    return render(request, "Students/student-subjects.html", context)

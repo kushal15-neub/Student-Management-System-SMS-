@@ -46,4 +46,5 @@ urlpatterns = [
     ),
     path("assignments/create/", views.create_assignment, name="create_assignment"),
     path("my-assignments/", views.my_assignments, name="my_assignments"),
+    path("subjects/", views.student_subjects, name="student_subjects"),
 ]

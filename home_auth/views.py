@@ -83,6 +83,18 @@ def signup_view(request):
             pass
 
         user.save()  # Save the user with the assigned role
+        # Send a friendly welcome email to the newly registered user.
+        try:
+            send_mail(
+                "Welcome to Preskool",
+                f"Hi {first_name},\n\nCongratulations! You have successfully registered with Preskool.\n\nYou can log in at http://localhost:8000/authentication/login/\n\nThanks,\nPreskool Team",
+                settings.DEFAULT_FROM_EMAIL,
+                [email],
+                fail_silently=False,
+            )
+        except Exception:
+            # Don't block signup if email sending fails; consider logging in production.
+            pass
         # If the user signed up as a teacher, create a Teacher profile linked
         # to this user. The teacher record will be created without a
         # department so the superadmin can assign it later via admin. We

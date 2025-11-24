@@ -43,6 +43,12 @@ INSTALLED_APPS = [
     "schoo",
     "student",
     "home_auth",
+    # django-allauth apps for social authentication (Google sign-in)
+    "django.contrib.sites",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 ]
 
 MIDDLEWARE = [
@@ -51,6 +57,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Required by django-allauth
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -69,6 +77,8 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 # custom display name for templates
                 "home_auth.context_processors.display_name",
+                # indicate available social providers to avoid template errors
+                "home_auth.context_processors.social_providers_available",
             ],
         },
     },
@@ -140,11 +150,45 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Custom User Model
 AUTH_USER_MODEL = "home_auth.CustomUser"
 AUTHENTICATION_BACKENDS = [
+    # django-allauth authentication backend (supports social auth)
+    "allauth.account.auth_backends.AuthenticationBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
+
+# Site ID required by django-allauth
+SITE_ID = 1
+
+# django-allauth configuration (basic)
+ACCOUNT_AUTHENTICATION_METHOD = "username_email"
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = "optional"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    }
+}
 
 # Post-login redirect (fallback if views don't specify)
 LOGIN_REDIRECT_URL = "/student/dashboard/"
 LOGOUT_REDIRECT_URL = "/"
 # Use custom login URL (home_auth provides login at /authentication/login/)
 LOGIN_URL = "/authentication/login/"
+
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "kushalpanthadas44@gmail.com"
+
+
+import os
+
+# Use Gmail SMTP (reads credentials from env)
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "kushalpanthadas44@gmail.com")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")  # must be set in env
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
