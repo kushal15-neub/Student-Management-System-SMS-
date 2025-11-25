@@ -26,7 +26,14 @@ SECRET_KEY = "django-insecure-h1($mrc+4_bhs^+psrozi3hyb=jfszwz&y-sy2#t))#7fez(r8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "student-management-system-sms-2.onrender.com",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "https://student-management-system-sms-2.onrender.com",
+]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
