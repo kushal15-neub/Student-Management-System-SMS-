@@ -30,9 +30,12 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "student-management-system-sms-2.onrender.com",
+    "student-management-system-sms-3.onrender.com",
 ]
+
 CSRF_TRUSTED_ORIGINS = [
     "https://student-management-system-sms-2.onrender.com",
+    "https://student-management-system-sms-3.onrender.com",
 ]
 
 MEDIA_URL = "/media/"
