@@ -136,7 +136,13 @@ USE_TZ = True
 STATIC_URL = "/static/"
 
 STATICFILES_DIRS = [
-    BASE_DIR.parent / "static",
+    # Keep project static files inside the Django project directory for
+    # easier Git tracking and deployment. Previously this pointed to
+    # BASE_DIR.parent / "static" (one level above the project). When
+    # the repository root is the `Home` folder, keep static under
+    # `BASE_DIR / "static"` so it is inside the repository.
+    BASE_DIR
+    / "static",
 ]
 
 # STATIC_ROOT is used for production (when running collectstatic)
